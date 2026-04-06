@@ -1,3 +1,5 @@
+export type GameMode = "multiplication" | "division" | "mixed";
+
 export type LeaderboardEntry = {
   playerName: string;
   time: number;
@@ -8,6 +10,7 @@ export type GameQuestion = {
   a: number;
   b: number;
   answer: number;
+  operator: "×" | "÷";
 };
 
 export type Screen = "welcome" | "game" | "results" | "table";
@@ -15,6 +18,7 @@ export type Screen = "welcome" | "game" | "results" | "table";
 export type GameState = {
   screen: Screen;
   currentPlayer: string | null;
+  mode: GameMode;
   questions: GameQuestion[];
   currentIndex: number;
   startTime: number | null;

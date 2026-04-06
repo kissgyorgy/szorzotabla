@@ -1,8 +1,12 @@
-import type { LeaderboardEntry } from "./types";
+import type { LeaderboardEntry, GameMode } from "./types";
 
 const PLAYERS_KEY = "szorzotabla_players";
 const CURRENT_PLAYER_KEY = "szorzotabla_currentPlayer";
-const LEADERBOARD_KEY = "szorzotabla_leaderboard";
+
+function leaderboardKey(mode: GameMode): string {
+  if (mode === "multiplication") return "szorzotabla_leaderboard";
+  return `szorzotabla_leaderboard_${mode}`;
+}
 
 export function getPlayers(): string[] {
   try {
@@ -33,21 +37,24 @@ export function setCurrentPlayer(name: string): void {
   localStorage.setItem(CURRENT_PLAYER_KEY, name);
 }
 
-export function getLeaderboard(): LeaderboardEntry[] {
+export function getLeaderboard(mode: GameMode): LeaderboardEntry[] {
   try {
-    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    const raw = localStorage.getItem(leaderboardKey(mode));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 }
 
-export function addLeaderboardEntry(entry: LeaderboardEntry): number | null {
-  const board = getLeaderboard();
+export function addLeaderboardEntry(
+  entry: LeaderboardEntry,
+  mode: GameMode,
+): number | null {
+  const board = getLeaderboard(mode);
   board.push(entry);
   board.sort((a, b) => a.time - b.time);
   const top10 = board.slice(0, 10);
-  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(top10));
+  localStorage.setItem(leaderboardKey(mode), JSON.stringify(top10));
   const idx = top10.findIndex(
     (e) =>
       e.playerName === entry.playerName &&

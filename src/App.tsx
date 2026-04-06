@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import confetti from "canvas-confetti";
-import type { GameState, LeaderboardEntry } from "./types";
-import { generateQuestions, formatTime } from "./game";
+import type { GameState, GameMode, LeaderboardEntry } from "./types";
+import { generateQuestions, formatTime, MODE_LABELS } from "./game";
 import {
   getPlayers,
   addPlayer,
@@ -60,21 +60,47 @@ function Leaderboard({
   );
 }
 
+type TableType = "multiplication" | "division";
 type TableView = "grid" | "grouped";
 
-function MultiplicationTableScreen({ onBack }: { onBack: () => void }) {
+function TableScreen({ onBack }: { onBack: () => void }) {
+  const [tableType, setTableType] = useState<TableType>("multiplication");
   const [view, setView] = useState<TableView>("grid");
   const [selected, setSelected] = useState<{ a: number; b: number } | null>(
     null,
   );
   const nums = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+  const isDivision = tableType === "division";
+
   return (
     <>
       <h1 className="app-title">
-        <span className="emoji-deco">📐</span> Szorzótábla{" "}
+        <span className="emoji-deco">📐</span>{" "}
+        {isDivision ? "Osztótábla" : "Szorzótábla"}{" "}
         <span className="emoji-deco">📐</span>
       </h1>
+
+      <div className="table-type-switcher">
+        <button
+          className={`mode-btn${!isDivision ? " mode-btn--active mode-btn--multiplication" : ""}`}
+          onClick={() => {
+            setTableType("multiplication");
+            setSelected(null);
+          }}
+        >
+          ✖️ Szorzótábla
+        </button>
+        <button
+          className={`mode-btn${isDivision ? " mode-btn--active mode-btn--division" : ""}`}
+          onClick={() => {
+            setTableType("division");
+            setSelected(null);
+          }}
+        >
+          ➗ Osztótábla
+        </button>
+      </div>
 
       <div className="table-view-switcher">
         <button
@@ -87,14 +113,16 @@ function MultiplicationTableScreen({ onBack }: { onBack: () => void }) {
           className={`player-bubble${view === "grouped" ? " player-bubble--active" : ""}`}
           onClick={() => setView("grouped")}
         >
-          📋 Szorzók szerint
+          📋 {isDivision ? "Osztók" : "Szorzók"} szerint
         </button>
       </div>
 
       {view === "grid" ? (
         <div className="card mult-table-card">
           <div className="mult-grid">
-            <div className="mult-cell mult-cell--corner">×</div>
+            <div className="mult-cell mult-cell--corner">
+              {isDivision ? "÷" : "×"}
+            </div>
             {nums.map((n) => (
               <div
                 key={`h${n}`}
@@ -129,6 +157,25 @@ function MultiplicationTableScreen({ onBack }: { onBack: () => void }) {
             ))}
           </div>
         </div>
+      ) : isDivision ? (
+        <div className="mult-grouped">
+          {nums.map((divisor) => (
+            <div key={divisor} className="card mult-group-card">
+              <h3 className="mult-group-title">÷{divisor} osztótábla</h3>
+              <div className="mult-group-rows">
+                {nums.map((quotient) => (
+                  <div key={quotient} className="mult-group-row">
+                    <span className="mult-group-expr">
+                      {divisor * quotient} ÷ {divisor}
+                    </span>
+                    <span className="mult-group-eq">=</span>
+                    <span className="mult-group-result">{quotient}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="mult-grouped">
           {nums.map((a) => (
@@ -159,18 +206,60 @@ function MultiplicationTableScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
+function ModeSelector({
+  mode,
+  onChange,
+}: {
+  mode: GameMode;
+  onChange: (m: GameMode) => void;
+}) {
+  return (
+    <div className="card mode-section">
+      <div className="mode-buttons">
+        <button
+          className={`mode-btn${mode === "multiplication" ? " mode-btn--active mode-btn--multiplication" : ""}`}
+          onClick={() => onChange("multiplication")}
+        >
+          ✖️ Szorzás
+        </button>
+        <button
+          className={`mode-btn${mode === "division" ? " mode-btn--active mode-btn--division" : ""}`}
+          onClick={() => onChange("division")}
+        >
+          ➗ Osztás
+        </button>
+        <button
+          className={`mode-btn${mode === "mixed" ? " mode-btn--active mode-btn--mixed" : ""}`}
+          onClick={() => onChange("mixed")}
+        >
+          🔀 Vegyes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const SUBTITLE: Record<GameMode, string> = {
+  multiplication: "Mennyire megy a szorzás? 🤔",
+  division: "Mennyire megy az osztás? 🤔",
+  mixed: "Mennyire megy a matek? 🤔",
+};
+
 function WelcomeScreen({
   onStart,
   onShowTable,
 }: {
-  onStart: (playerName: string) => void;
+  onStart: (playerName: string, mode: GameMode) => void;
   onShowTable: () => void;
 }) {
   const [players, setPlayers] = useState<string[]>(getPlayers);
   const [current, setCurrent] = useState<string | null>(getCurrentPlayer);
   const [newName, setNewName] = useState("");
   const [showNameInput, setShowNameInput] = useState(!current);
-  const [leaderboard] = useState<LeaderboardEntry[]>(getLeaderboard);
+  const [mode, setMode] = useState<GameMode>("multiplication");
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(() =>
+    getLeaderboard(mode),
+  );
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -178,6 +267,10 @@ function WelcomeScreen({
       nameInputRef.current.focus();
     }
   }, [showNameInput]);
+
+  useEffect(() => {
+    setLeaderboard(getLeaderboard(mode));
+  }, [mode]);
 
   const handleSetPlayer = useCallback((name: string) => {
     const trimmed = name.trim();
@@ -196,8 +289,8 @@ function WelcomeScreen({
   }, []);
 
   const handleStart = useCallback(() => {
-    if (current) onStart(current);
-  }, [current, onStart]);
+    if (current) onStart(current, mode);
+  }, [current, mode, onStart]);
 
   return (
     <>
@@ -205,7 +298,7 @@ function WelcomeScreen({
         <span className="emoji-deco">✨</span> Szorzótábla{" "}
         <span className="emoji-deco">✨</span>
       </h1>
-      <p className="subtitle">Mennyire megy a szorzás? 🤔</p>
+      <p className="subtitle">{SUBTITLE[mode]}</p>
 
       <div className="card player-section">
         {current && !showNameInput && (
@@ -263,6 +356,8 @@ function WelcomeScreen({
         )}
       </div>
 
+      <ModeSelector mode={mode} onChange={setMode} />
+
       <div
         className="text-center mb-md"
         style={{
@@ -280,13 +375,15 @@ function WelcomeScreen({
           🚀 Rajt!
         </button>
         <button className="btn btn--success" onClick={onShowTable}>
-          📐 Szorzótábla
+          📐 Táblázatok
         </button>
       </div>
 
       {leaderboard.length > 0 && (
         <div className="card leaderboard stagger-2">
-          <h2 className="leaderboard-title">🏆 Ranglista</h2>
+          <h2 className="leaderboard-title">
+            🏆 Ranglista — {MODE_LABELS[mode]}
+          </h2>
           <Leaderboard entries={leaderboard} limit={5} />
         </div>
       )}
@@ -318,18 +415,27 @@ function GameScreen({
   useEffect(() => {
     setInputVal("");
     setCorrect(false);
-    if (inputRef.current) inputRef.current.focus();
   }, [state.currentIndex]);
 
   useEffect(() => {
-    if (!state.shaking && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [state.shaking]);
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    const handleBlur = () => {
+      setTimeout(() => {
+        if (inputRef.current && document.hasFocus()) {
+          inputRef.current.focus({ preventScroll: true });
+        }
+      }, 10);
+    };
+    el.addEventListener("blur", handleBlur);
+    return () => el.removeEventListener("blur", handleBlur);
+  }, []);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      if (state.shaking || correct) return;
       const trimmed = inputVal.trim();
       if (!trimmed) return;
 
@@ -345,7 +451,7 @@ function GameScreen({
         onAnswer(trimmed);
       }
     },
-    [inputVal, question.answer, onAnswer],
+    [inputVal, question.answer, onAnswer, state.shaking, correct],
   );
 
   const areaClass = [
@@ -357,7 +463,11 @@ function GameScreen({
     .join(" ");
 
   return (
-    <>
+    <div
+      className="game-screen"
+      onClick={() => inputRef.current?.focus({ preventScroll: true })}
+    >
+      <span className="timer">⏱ {formatTime(elapsed)}</span>
       <div className="card card--game">
         <div className="game-header">
           <span className="progress-text">
@@ -372,13 +482,12 @@ function GameScreen({
               return <div key={i} className={cls} />;
             })}
           </div>
-          <span className="timer">⏱ {formatTime(elapsed)}</span>
         </div>
 
         <div className={areaClass}>
           <div className="equation">
             {question.a}
-            <span className="multiply"> × </span>
+            <span className="multiply"> {question.operator} </span>
             {question.b}
             <span className="equals"> = </span>
             <span className="qmark">?</span>
@@ -392,13 +501,14 @@ function GameScreen({
             type="number"
             inputMode="numeric"
             value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            disabled={state.shaking || correct}
+            onChange={(e) => {
+              if (!state.shaking && !correct) setInputVal(e.target.value);
+            }}
             autoComplete="off"
           />
         </form>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -415,7 +525,9 @@ function ResultsScreen({
   onPlayAgain: () => void;
   onBack: () => void;
 }) {
-  const [leaderboard] = useState<LeaderboardEntry[]>(getLeaderboard);
+  const [leaderboard] = useState<LeaderboardEntry[]>(() =>
+    getLeaderboard(state.mode),
+  );
   const confettiFired = useRef(false);
   const isTop3 = rank !== null && rank <= 3;
 
@@ -442,6 +554,7 @@ function ResultsScreen({
   return (
     <>
       <div className="card results">
+        <div className="results-mode">{MODE_LABELS[state.mode]}</div>
         <div className="results-emoji">🎯</div>
         <div className="results-time">{formatTime(totalTime)}</div>
         <div className="results-mistakes">
@@ -461,7 +574,9 @@ function ResultsScreen({
       </div>
 
       <div className="card leaderboard stagger-2">
-        <h2 className="leaderboard-title">🏆 Ranglista</h2>
+        <h2 className="leaderboard-title">
+          🏆 Ranglista — {MODE_LABELS[state.mode]}
+        </h2>
         <Leaderboard entries={leaderboard} highlightEntry={resultEntry} />
       </div>
     </>
@@ -472,6 +587,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>({
     screen: "welcome",
     currentPlayer: getCurrentPlayer(),
+    mode: "multiplication",
     questions: [],
     currentIndex: 0,
     startTime: null,
@@ -483,11 +599,12 @@ export default function App() {
   const [rank, setRank] = useState<number | null>(null);
   const [resultEntry, setResultEntry] = useState<LeaderboardEntry | null>(null);
 
-  const handleStart = useCallback((playerName: string) => {
-    const questions = generateQuestions();
+  const handleStart = useCallback((playerName: string, mode: GameMode) => {
+    const questions = generateQuestions(mode);
     setGameState({
       screen: "game",
       currentPlayer: playerName,
+      mode,
       questions,
       currentIndex: 0,
       startTime: Date.now(),
@@ -528,7 +645,7 @@ export default function App() {
             time: totalTime,
             date: new Date().toISOString(),
           };
-          const entryRank = addLeaderboardEntry(entry);
+          const entryRank = addLeaderboardEntry(entry, prev.mode);
           setRank(entryRank);
           setResultEntry(entry);
         }
@@ -549,8 +666,8 @@ export default function App() {
   }, []);
 
   const handlePlayAgain = useCallback(() => {
-    handleStart(gameState.currentPlayer!);
-  }, [gameState.currentPlayer, handleStart]);
+    handleStart(gameState.currentPlayer!, gameState.mode);
+  }, [gameState.currentPlayer, gameState.mode, handleStart]);
 
   const handleBack = useCallback(() => {
     setGameState((prev) => ({
@@ -573,9 +690,7 @@ export default function App() {
       {gameState.screen === "welcome" && (
         <WelcomeScreen onStart={handleStart} onShowTable={handleShowTable} />
       )}
-      {gameState.screen === "table" && (
-        <MultiplicationTableScreen onBack={handleBack} />
-      )}
+      {gameState.screen === "table" && <TableScreen onBack={handleBack} />}
       {gameState.screen === "game" && (
         <GameScreen state={gameState} onAnswer={handleAnswer} />
       )}
